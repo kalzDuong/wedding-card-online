@@ -230,7 +230,9 @@
     const closeBtn = $("[data-modal-close]");
     if (!form || !modal) return;
 
-    const rsvpDebug = new URLSearchParams(window.location.search).has("rsvpDebug");
+    // Set true ONLY when you intentionally want to open Apps Script response in a new tab.
+    // Keep it false for normal usage to avoid "văng ra ok".
+    const RSVP_DEBUG = false;
 
     const ensureSinkFrame = () => {
       let frame = document.querySelector('iframe[name="rsvp_sink"]');
@@ -310,9 +312,9 @@
       try {
         form.setAttribute("action", RSVP_ENDPOINT);
         form.setAttribute("method", "POST");
-        if (rsvpDebug) {
+        if (RSVP_DEBUG) {
           // Debug mode: open Apps Script response in new tab
-          // Visit: detail.html?rsvpDebug=1#rsvp
+          // (Turn RSVP_DEBUG=true above)
           form.setAttribute("target", "_blank");
         } else {
           ensureSinkFrame();
