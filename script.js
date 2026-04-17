@@ -230,6 +230,20 @@
     const closeBtn = $("[data-modal-close]");
     if (!form || !modal) return;
 
+    const rsvpDebug = new URLSearchParams(window.location.search).has("rsvpDebug");
+
+    const ensureSinkFrame = () => {
+      let frame = document.querySelector('iframe[name="rsvp_sink"]');
+      if (frame) return frame;
+      frame = document.createElement("iframe");
+      frame.name = "rsvp_sink";
+      frame.setAttribute("aria-hidden", "true");
+      frame.tabIndex = -1;
+      frame.style.display = "none";
+      document.body.appendChild(frame);
+      return frame;
+    };
+
     const submitBtn = $('[type="submit"]', form);
     const setSubmitting = (v) => {
       if (!submitBtn) return;
@@ -258,7 +272,7 @@
       if (modal.classList.contains("is-open") && e.key === "Escape") close();
     });
 
-    form.addEventListener("submit", async (e) => {
+    form.addEventListener("submit", (e) => {
       e.preventDefault();
       const fd = new FormData(form);
       const name = String(fd.get("name") || "").trim() || "bạn";
@@ -291,23 +305,43 @@
       }
 
       setSubmitting(true);
+      // Most reliable "no-backend" approach:
+      // submit via a hidden iframe (no fetch => no CORS).
       try {
-        // IMPORTANT:
-        // - Avoid JSON + custom headers to prevent CORS preflight issues with Apps Script.
-        // - Send as form-urlencoded (simple request).
-        // - Use `mode: "no-cors"` because Apps Script Web App doesn't include CORS headers,
-        //   so the browser would otherwise block the response (even if the request reaches the server).
-        const body = new URLSearchParams();
-        for (const [k, v] of Object.entries(payload)) body.set(k, String(v ?? ""));
+        form.setAttribute("action", RSVP_ENDPOINT);
+        form.setAttribute("method", "POST");
+        if (rsvpDebug) {
+          // Debug mode: open Apps Script response in new tab
+          // Visit: detail.html?rsvpDebug=1#rsvp
+          form.setAttribute("target", "_blank");
+        } else {
+          ensureSinkFrame();
+          form.setAttribute("target", "rsvp_sink");
+        }
 
-        // With no-cors the response is "opaque" (unreadable). If fetch resolves, we assume it reached Apps Script.
-        await fetch(RSVP_ENDPOINT, { method: "POST", mode: "no-cors", body, keepalive: true });
+        const injected = [];
+        const inject = (k, v) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = k;
+          input.value = String(v ?? "");
+          form.appendChild(input);
+          injected.push(input);
+        };
+        // Only inject extra fields to avoid duplicate keys with existing form inputs.
+        inject("attendText", payload.attendText);
+        inject("page", payload.page);
+        inject("userAgent", payload.userAgent);
+        inject("submittedAt", payload.submittedAt);
+
+        form.submit();
+        // Defer removal to ensure the browser has consumed the fields for submission.
+        setTimeout(() => injected.forEach((n) => n.remove()), 0);
 
         const msg =
           attend === "no"
             ? `Cảm ơn ${name}. Chúng mình đã nhận RSVP của bạn. Hẹn dịp gần nhất nhé.`
             : `Cảm ơn ${name}. Chúng mình đã nhận RSVP: ${humanAttend} • ${guests} người.`;
-
         open(msg);
         form.reset();
       } catch {
