@@ -294,14 +294,14 @@
       try {
         // IMPORTANT:
         // - Avoid JSON + custom headers to prevent CORS preflight issues with Apps Script.
-        // - Send as form-urlencoded (simple request), so browser won't block by CORS preflight.
+        // - Send as form-urlencoded (simple request).
+        // - Use `mode: "no-cors"` because Apps Script Web App doesn't include CORS headers,
+        //   so the browser would otherwise block the response (even if the request reaches the server).
         const body = new URLSearchParams();
         for (const [k, v] of Object.entries(payload)) body.set(k, String(v ?? ""));
 
-        const res = await fetch(RSVP_ENDPOINT, { method: "POST", body });
-
-        // If request reaches Apps Script, it's considered success even if response is opaque in some setups.
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // With no-cors the response is "opaque" (unreadable). If fetch resolves, we assume it reached Apps Script.
+        await fetch(RSVP_ENDPOINT, { method: "POST", mode: "no-cors", body, keepalive: true });
 
         const msg =
           attend === "no"
