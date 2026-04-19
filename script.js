@@ -134,6 +134,16 @@
     const btn = $("[data-audio-toggle]");
     if (!audio || !btn) return;
 
+    const TRACKS = ["./65 BPM String Loop.mp3", "./Piano Wedding Loop.mp3"];
+    let trackIndex = 0;
+
+    const setTrack = (i) => {
+      trackIndex = ((i % TRACKS.length) + TRACKS.length) % TRACKS.length;
+      audio.src = TRACKS[trackIndex];
+    };
+
+    setTrack(0);
+
     let enabled = false;
     const setUI = () => {
       btn.setAttribute("aria-pressed", enabled ? "true" : "false");
@@ -146,9 +156,11 @@
         await audio.play();
         enabled = true;
         setUI();
+        return true;
       } catch {
         enabled = false;
         setUI();
+        return false;
       }
     };
 
@@ -158,13 +170,30 @@
       setUI();
     };
 
+    audio.addEventListener("ended", () => {
+      if (!enabled) return;
+      setTrack(trackIndex + 1);
+      void tryPlay();
+    });
+
     btn.addEventListener("click", () => {
       if (enabled) pause();
       else void tryPlay();
     });
 
-    // Some browsers require explicit user gesture; we keep it off by default.
     setUI();
+
+    void (async () => {
+      const started = await tryPlay();
+      if (started) return;
+      const unlock = async () => {
+        document.removeEventListener("pointerdown", unlock);
+        document.removeEventListener("keydown", unlock);
+        await tryPlay();
+      };
+      document.addEventListener("pointerdown", unlock, { passive: true });
+      document.addEventListener("keydown", unlock);
+    })();
   }
 
   function initLightbox() {
